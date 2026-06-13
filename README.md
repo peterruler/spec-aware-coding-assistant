@@ -20,6 +20,7 @@ The installer uses Python 3.12, keeps the uv cache in the project, installs the 
 
 ## Folder Structure
 
+in the root directory create a spec folder with following contents  
 -spec  
 --pdfs (CheatSheet.pdf)  
 --pdfs-txt (copied pdf text in *txt Files with   Codierrichtlinien.txt)  
