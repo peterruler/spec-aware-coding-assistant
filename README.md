@@ -18,6 +18,13 @@ Create and populate the root `.venv`:
 
 The installer uses Python 3.12, keeps the uv cache in the project, installs the vLLM/backend dependencies, and creates `.env` with DGX defaults.
 
+## Folder Structure
+
+-spec  
+--pdfs (CheatSheet.pdf)  
+--pdfs-txt (copied pdf text in *txt Files with   Codierrichtlinien.txt)  
+--reports (specs as *.txt)
+
 ## Start Services
 
 Start the services in this order.
