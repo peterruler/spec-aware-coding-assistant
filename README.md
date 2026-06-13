@@ -6,6 +6,8 @@ Local DGX Spark setup for:
 - FastAPI backend
 - React/Vite frontend
 
+![QScript Coding Assistant screenshot](assistant-screen.png)
+
 ## Install Environment
 
 Create and populate the root `.venv`:
