@@ -1,0 +1,26 @@
+spec
+draft
+generated-src-txt
+.venv
+.env
+.uv-cache
+.npm-cache
+.local-node
+vllm_qwen3.egg-info
+.vscode
+generated-src-txt
+__pycache__
+*.pyc
+backend/.env
+frontend/.env
+frontend/node_modules
+frontend/dist
+# Ignore local dotfiles and dot-directories by default.
+.*
+!.gitignore
+!.env.example
+!.editorconfig
+!.prettierrc
+!.prettierrc.*
+!.eslintrc
+!.eslintrc.*
