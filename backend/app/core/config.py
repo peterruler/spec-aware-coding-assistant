@@ -9,6 +9,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 ROOT_ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+DGX_QWEN_CODER_MAX_INPUT_TOKENS = 262_144
+M1_QWEN_CODER_MAX_INPUT_TOKENS = 32_768
+DGX_QWEN_CODER_SPEC_PROMPT_BUDGET = int(DGX_QWEN_CODER_MAX_INPUT_TOKENS * 0.30)
 
 
 @dataclass(frozen=True)
@@ -19,6 +22,7 @@ class ServerProvider:
     base_url: str
     model: str
     description: str
+    max_input_tokens: int
 
 
 @dataclass(frozen=True)
@@ -60,9 +64,9 @@ class Settings(BaseSettings):
     m1_ollama_model: str = Field(default="qwen2.5-coder:3b", alias="M1_OLLAMA_MODEL")
     default_max_tokens: int = Field(default=8192, alias="VLLM_MAX_TOKENS")
     default_temperature: float = Field(default=0.2, alias="VLLM_TEMPERATURE")
-    default_num_ctx: int = Field(default=32768, alias="VLLM_NUM_CTX")
+    default_num_ctx: int = Field(default=DGX_QWEN_CODER_MAX_INPUT_TOKENS, alias="VLLM_NUM_CTX")
     min_reserved_output_tokens: int = Field(default=8192, alias="VLLM_RESERVED_OUTPUT_TOKENS")
-    spec_prompt_token_budget: int = Field(default=9830, alias="SPEC_PROMPT_TOKEN_BUDGET")
+    spec_prompt_token_budget: int = Field(default=DGX_QWEN_CODER_SPEC_PROMPT_BUDGET, alias="SPEC_PROMPT_TOKEN_BUDGET")
     spec_prompt_max_context_fraction: float = Field(default=0.30, alias="SPEC_PROMPT_MAX_CONTEXT_FRACTION")
     request_timeout_seconds: float = Field(default=600.0, alias="VLLM_TIMEOUT_SECONDS")
 
@@ -87,6 +91,7 @@ class Settings(BaseSettings):
                 base_url=self.dgx_vllm_base_url,
                 model=self.dgx_vllm_model,
                 description="Use this when the DGX Spark vLLM server is running on port 8042.",
+                max_input_tokens=self.default_num_ctx,
             ),
             ServerProvider(
                 id="m1_ollama_qwen_coder",
@@ -95,6 +100,7 @@ class Settings(BaseSettings):
                 base_url=self.m1_ollama_base_url,
                 model=self.m1_ollama_model,
                 description="Use this on the M1 Mac with Ollama's OpenAI-compatible API on port 11434.",
+                max_input_tokens=M1_QWEN_CODER_MAX_INPUT_TOKENS,
             ),
         ]
 

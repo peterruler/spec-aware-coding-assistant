@@ -70,6 +70,7 @@ def create_app() -> FastAPI:
                     base_url=provider.base_url,
                     model=provider.model,
                     description=provider.description,
+                    max_input_tokens=provider.max_input_tokens,
                 )
                 for provider in settings_dep.providers
             ],

@@ -34,9 +34,10 @@ class ChatService:
     def _history_dicts(history: list[ChatMessage]) -> list[dict[str, str]]:
         return [{"role": item.role, "content": item.content} for item in history]
 
-    def _num_ctx(self, request_num_ctx: int | None) -> int:
-        requested = int(request_num_ctx or self.settings.default_num_ctx)
-        return min(max(4096, requested), self.settings.default_num_ctx)
+    def _num_ctx(self, request_num_ctx: int | None, provider: ServerProvider) -> int:
+        ceiling = max(4096, int(provider.max_input_tokens or self.settings.default_num_ctx))
+        requested = int(request_num_ctx or min(self.settings.default_num_ctx, ceiling))
+        return min(max(4096, requested), ceiling)
 
     def _spec_token_budget(self, num_ctx: int) -> int:
         ratio_budget = int(num_ctx * self.settings.spec_prompt_max_context_fraction)
@@ -49,7 +50,7 @@ class ChatService:
             self.settings.min_reserved_output_tokens,
             int(request.reserve_output_tokens or self.settings.min_reserved_output_tokens),
         )
-        num_ctx = self._num_ctx(request.num_ctx)
+        num_ctx = self._num_ctx(request.num_ctx, provider)
 
         assembly = self.spec_context.assemble_prompt(
             user_message=request.message,
@@ -97,7 +98,7 @@ class ChatService:
             self.settings.min_reserved_output_tokens,
             int(request.reserve_output_tokens or self.settings.min_reserved_output_tokens),
         )
-        num_ctx = self._num_ctx(request.num_ctx)
+        num_ctx = self._num_ctx(request.num_ctx, provider)
 
         assembly = self.spec_context.assemble_prompt(
             user_message=request.message,

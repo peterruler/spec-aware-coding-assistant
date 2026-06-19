@@ -72,9 +72,9 @@ VLLM_BASE_URL=http://127.0.0.1:8042/v1
 VLLM_API_KEY=dummy
 VLLM_MODEL=Qwen/Qwen3-Coder-30B-A3B-Instruct
 DGX_VLLM_MODEL=Qwen/Qwen3-Coder-30B-A3B-Instruct
-VLLM_NUM_CTX=32768
+VLLM_NUM_CTX=262144
 VLLM_RESERVED_OUTPUT_TOKENS=8192
-SPEC_PROMPT_TOKEN_BUDGET=9830
+SPEC_PROMPT_TOKEN_BUDGET=78643
 SPEC_PROMPT_MAX_CONTEXT_FRACTION=0.30
 PROJECT_ROOT=..
 CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173","http://192.168.1.196:5173"]
@@ -163,14 +163,16 @@ For explicit environment defaults, use one of these instead:
 ./run-api-ollama.sh
 ```
 
-`ollama show qwen2.5-coder:3b` reports a context length of 32768. `run-api-ollama.sh` defaults to `qwen2.5-coder:3b` and `VLLM_NUM_CTX=32768` for the M1 Mac. Spec text is capped to 9830 tokens, which is 30% of that context window. `run-api-dgx.sh` also keeps `VLLM_NUM_CTX=32768` to match the DGX vLLM server command.
+`Qwen/Qwen3-Coder-30B-A3B-Instruct` has a native 262144-token context window. `run-backend-qwen3-coder-30b.sh` now defaults vLLM to `--max-model-len 262144`, and `run-api-dgx.sh` defaults `VLLM_NUM_CTX=262144` so the React GUI can use the DGX/Qwen maximum input-token budget. Spec text is capped to 78643 tokens, which is 30% of that context window. `ollama show qwen2.5-coder:3b` reports a context length of 32768, so `run-api-ollama.sh` keeps `VLLM_NUM_CTX=32768` and `SPEC_PROMPT_TOKEN_BUDGET=9830` for the M1 Mac path.
 
 The React UI also includes a backend switcher. It sends the selected `provider_id` with each chat request:
 
 ```text
-dgx_vllm_qwen       -> http://127.0.0.1:8042/v1, model Qwen/Qwen3-Coder-30B-A3B-Instruct
-m1_ollama_qwen_coder -> http://127.0.0.1:11434/v1, model qwen2.5-coder:3b
+dgx_vllm_qwen        -> http://127.0.0.1:8042/v1, model Qwen/Qwen3-Coder-30B-A3B-Instruct, max input 262144
+m1_ollama_qwen_coder -> http://127.0.0.1:11434/v1, model qwen2.5-coder:3b, max input 32768
 ```
+
+The GUI labels the output limit as `Output tokens` and the prompt/context budget as `Input tokens`. The `Input tokens` number input is clamped to the selected provider's `max_input_tokens`, so the DGX Spark Qwen path opens at 262144 while the M1 Ollama path stays at 32768.
 
 The React UI also includes an API-location switcher:
 
@@ -195,13 +197,13 @@ vllm serve Qwen/Qwen3-Coder-30B-A3B-Instruct \
   --host 0.0.0.0 \
   --port 8042 \
   --dtype bfloat16 \
-  --max-model-len 32768 \
+  --max-model-len 262144 \
   --gpu-memory-utilization 0.80 \
   --enable-auto-tool-choice \
   --tool-call-parser qwen3_coder
 ```
 
-The FastAPI app reserves 8192 tokens for generation and caps loaded specification context to `min(SPEC_PROMPT_TOKEN_BUDGET, 30% of context)`. With the default 32768-token context this is 9830 spec tokens.
+The FastAPI app reserves 8192 tokens for generation and caps loaded specification context to `min(SPEC_PROMPT_TOKEN_BUDGET, 30% of context)`. With the DGX default 262144-token context this is 78643 spec tokens. The backend also clamps incoming chat requests to the selected provider's `max_input_tokens` so a large DGX input setting is not accidentally applied to the M1 Ollama provider.
 
 The UI also includes a spec-source switcher. It sends the selected `spec_source_id` with each scan and chat request:
 
@@ -246,6 +248,13 @@ export USB_SPEC_ROOT=/media/$USER/C6B5-FBEC/spec
 ```text
 http://127.0.0.1:5173
 ```
+
+## Iterative Change Notes
+
+- 2026-06-19: Moved the sticky assistant `Copy source` button to the left side of generated output so it remains visible and starts at the output edge while long code streams.
+- 2026-06-19: Made the assistant message copy action sticky in the React chat output so the `Copy source` button remains visible while long generated code streams or the chat window scrolls.
+- 2026-06-19: Updated the React auto-test prompt so it now asks for a QScript quiz about QScript. The generated app, the 20 quiz questions, answer choices, explanations, and any example snippets are constrained to QScript instead of TypeScript.
+- 2026-06-19: Raised the DGX Spark Qwen3-Coder 30B input-token/default context budget from 32768 to the model-native 262144 in the backend settings, DGX launch script, vLLM launcher, `.env`, `.env.example`, and installer-generated `.env`. Raised the default DGX spec prompt budget from 9830 to 78643 to preserve the existing 30% cap at the larger context size. Updated the React GUI to label `Output tokens` separately from `Input tokens`, initialize DGX input tokens to 262144, expose provider `max_input_tokens`, and clamp the input-token field per selected provider.
 
 ## Production Notes
 

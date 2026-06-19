@@ -53,6 +53,7 @@ class ProviderConfig(BaseModel):
     base_url: str
     model: str
     description: str
+    max_input_tokens: int
 
 
 class SpecSourceConfig(BaseModel):

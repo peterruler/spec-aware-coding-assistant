@@ -11,7 +11,7 @@ vllm serve "Qwen/Qwen3-Coder-30B-A3B-Instruct" \
   --host 0.0.0.0 \
   --port "${VLLM_PORT:-8042}" \
   --dtype bfloat16 \
-  --max-model-len "${VLLM_MAX_MODEL_LEN:-32768}" \
+  --max-model-len "${VLLM_MAX_MODEL_LEN:-262144}" \
   --gpu-memory-utilization "${VLLM_GPU_MEMORY_UTILIZATION:-0.80}" \
   --enforce-eager \
   --enable-auto-tool-choice \

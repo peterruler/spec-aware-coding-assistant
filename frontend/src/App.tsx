@@ -38,6 +38,7 @@ type ProviderConfig = {
   base_url: string;
   model: string;
   description: string;
+  max_input_tokens: number;
 };
 
 type SpecSourceConfig = {
@@ -91,6 +92,8 @@ type ApiEndpoint = {
 
 const DEFAULT_API_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL || "");
 const DGX_SPARK_API_BASE_URL = "http://192.168.1.196:8080";
+const FALLBACK_DGX_QWEN_MAX_INPUT_TOKENS = 262144;
+const MIN_INPUT_TOKENS = 4096;
 const API_ENDPOINTS: ApiEndpoint[] = [
   {
     id: "m1_local",
@@ -108,14 +111,14 @@ const API_ENDPOINTS: ApiEndpoint[] = [
 
 const AUTO_TEST_PROMPT = `You are given QScript specification files in this prompt. Generate a complete single-file quiz application using only the QScript language described in those specs.
 
-The app must be a quiz about TypeScript.
+The app must be a quiz about QScript.
 
 Critical rules:
 1. The generated program must be QScript only.
-2. Do not write the app in TypeScript.
+2. Do not write the app in TypeScript or any other language.
 3. Do not output JavaScript, HTML, Python, React, or pseudocode.
-4. TypeScript is only the subject matter of the quiz.
-5. TypeScript code snippets are allowed only inside question text, answer choices, or explanations.
+4. QScript is the subject matter of the quiz.
+5. All quiz questions, answer choices, explanations, and code snippets must be about QScript and use QScript syntax only.
 6. All functions must live inside the FhClass block.
 7. The FhClass declaration must be written as SET FORMCLASS FhClass [ and its square bracket block must wrap the entire following function list.
 8. Do not close the FhClass square bracket block until after the final function.
@@ -124,7 +127,7 @@ Critical rules:
 11. Output only the final QScript source code.
 
 App behavior:
-- Present at least 20 TypeScript quiz questions.
+- Present at least 20 QScript quiz questions.
 - Provide multiple-choice answers.
 - Accept the user's answer.
 - Check correctness.
@@ -156,6 +159,11 @@ function codeHtml(source: string): string {
   return `<pre class="generated-code"><code>${escapeHtml(content)}</code></pre>`;
 }
 
+function clampTokenCount(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(Math.trunc(value), min), max);
+}
+
 function sanitize(html: string): string {
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: ["pre", "code", "div", "span", "p", "br"],
@@ -175,7 +183,7 @@ export default function App() {
   const [model, setModel] = useState("");
   const [temperature, setTemperature] = useState(0.2);
   const [maxTokens, setMaxTokens] = useState(8192);
-  const [numCtx, setNumCtx] = useState(32768);
+  const [numCtx, setNumCtx] = useState(FALLBACK_DGX_QWEN_MAX_INPUT_TOKENS);
   const [reserveTokens, setReserveTokens] = useState(8192);
   const [status, setStatus] = useState("Ready");
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
@@ -212,6 +220,8 @@ export default function App() {
     [apiBaseUrl]
   );
   const apiLocationLabel = currentApiEndpoint?.label ?? (apiBaseUrl || "M1 Mac local API");
+  const currentInputTokenLimit =
+    currentProvider?.max_input_tokens ?? config?.default_num_ctx ?? FALLBACK_DGX_QWEN_MAX_INPUT_TOKENS;
 
   useEffect(() => {
     void loadConfig();
@@ -231,6 +241,10 @@ export default function App() {
       void scanSpecs(selectedSpecSourceId);
     }
   }, [selectedSpecSourceId, apiBaseUrl]);
+
+  useEffect(() => {
+    setNumCtx((current) => clampTokenCount(current, MIN_INPUT_TOKENS, currentInputTokenLimit));
+  }, [currentInputTokenLimit]);
 
   useEffect(() => {
     return () => {
@@ -253,12 +267,13 @@ export default function App() {
       setConfig(data);
       const providerId = data.default_provider_id || data.providers[0]?.id || "";
       const provider = data.providers.find((item) => item.id === providerId) ?? data.providers[0];
+      const inputTokenLimit = provider?.max_input_tokens ?? data.default_num_ctx;
       setSelectedProviderId(providerId);
       setSelectedSpecSourceId(data.default_spec_source_id || data.spec_sources[0]?.id || "");
       setModel(provider?.model || data.default_model);
       setTemperature(data.default_temperature);
       setMaxTokens(data.default_max_tokens);
-      setNumCtx(data.default_num_ctx);
+      setNumCtx(clampTokenCount(data.default_num_ctx, MIN_INPUT_TOKENS, inputTokenLimit));
       setReserveTokens(data.min_reserved_output_tokens);
       setBackendStatus(null);
       setStatus(`Connected to ${apiLocationLabel}`);
@@ -454,6 +469,7 @@ export default function App() {
   function selectProvider(provider: ProviderConfig) {
     setSelectedProviderId(provider.id);
     setModel(provider.model);
+    setNumCtx(clampTokenCount(provider.max_input_tokens, MIN_INPUT_TOKENS, provider.max_input_tokens));
     setBackendStatus(null);
     setStatus(`Selected ${provider.label}`);
   }
@@ -611,7 +627,7 @@ export default function App() {
               />
             </label>
             <label>
-              Max tokens
+              Output tokens
               <input
                 type="number"
                 min="1"
@@ -620,12 +636,15 @@ export default function App() {
               />
             </label>
             <label>
-              Context
+              Input tokens
               <input
                 type="number"
-                min="4096"
+                min={MIN_INPUT_TOKENS}
+                max={currentInputTokenLimit}
                 value={numCtx}
-                onChange={(event) => setNumCtx(Number(event.target.value))}
+                onChange={(event) =>
+                  setNumCtx(clampTokenCount(Number(event.target.value), MIN_INPUT_TOKENS, currentInputTokenLimit))
+                }
               />
             </label>
             <label>
@@ -674,10 +693,13 @@ export default function App() {
               <p>Root: {specScan.spec_root}</p>
               <p>{specScan.note}</p>
               {config && (
+                <>
                 <p>
                   Prompt spec budget: {config.spec_prompt_token_budget} max, capped at{" "}
                   {Math.round(config.spec_prompt_max_context_fraction * 100)}% of context
                 </p>
+                <p>Input token limit: {currentInputTokenLimit}</p>
+                </>
               )}
               <p>Total tokens: {specScan.total_estimated_tokens}</p>
               <p>Files: {specScan.files.length}</p>
